@@ -131,4 +131,4 @@ if st.button("Analyser valgte aktier"):
 
             for _, række in alarmer.iterrows():
 
-                if række
+                if række["Udvikling %"] <= -10:
