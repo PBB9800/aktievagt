@@ -2,12 +2,25 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
+from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
+
 st.set_page_config(
     page_title="Aktievagt 2.3",
     layout="wide"
 )
 
+# Auto refresh hvert 5. minut
+st_autorefresh(
+    interval=300000,
+    key="aktievagt_refresh"
+)
+
 st.title("📈 Aktievagt 2.3")
+
+st.caption(
+    f"Sidst opdateret: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
+)
 
 st.write(
     "Scanner C25 og fremhæver dagens største kursfald."
@@ -94,7 +107,8 @@ if len(rows) > 0:
     )
 
     df = df.sort_values(
-        by="Dagsændring %"
+        by="Dagsændring %",
+        ascending=True
     )
 
     store_fald = df[
@@ -160,4 +174,10 @@ if len(rows) > 0:
 
     st.line_chart(
         graf["Close"]
+    )
+
+else:
+
+    st.error(
+        "Kunne ikke hente kursdata fra Yahoo Finance."
     )
