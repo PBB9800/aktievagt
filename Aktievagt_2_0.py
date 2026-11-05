@@ -2,59 +2,147 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-st.set_page_config(page_title="Aktievagt", layout="wide")
-
-st.title("📈 Aktievagt")
-
-st.write("Overvåg aktier og få besked ved fald på 5 % eller 10 %.")
-
-ticker = st.text_input("Aktieticker", "NOVO-B.CO")
-
-reference = st.number_input(
-    "Referencekurs",
-    min_value=0.0,
-    value=500.0,
-    step=1.0
+st.set_page_config(
+    page_title="Aktievagt 2.1",
+    layout="wide"
 )
 
-if st.button("Tjek aktie"):
-    try:
-        aktie = yf.Ticker(ticker)
-        kurs = float(
-            aktie.history(period="1d")["Close"].iloc[-1]
-        )
+st.title("📈 Aktievagt 2.1")
 
-        ændring = ((kurs - reference) / reference) * 100
+st.write(
+    "Overvåg flere aktier samtidig og få advarsel ved fald på 5 % og 10 %."
+)
 
-        st.metric(
-            "Aktuel kurs",
-            f"{kurs:.2f}"
-        )
+watchlist = st.text_area(
+    "Aktier (én ticker pr. linje)",
+    value="""NOVO-B.CO
+DSV.CO
+ORSTED.CO
+DANSKE.CO
+VWS.CO"""
+)
 
-        st.metric(
-            "Udvikling",
-            f"{ændring:.2f}%"
-        )
+reference = st.number_input(
+    "Referencekurs (%)",
+    min_value=0,
+    max_value=100,
+    value=100
+)
 
-        if ændring <= -10:
-            st.error(
-                f"🚨 Alarm: {ticker} er faldet mere end 10 %"
+if st.button("Opdater watchlist"):
+
+    tickers = [
+        t.strip()
+        for t in watchlist.split("\n")
+        if t.strip()
+    ]
+
+    rows = []
+
+    for ticker in tickers:
+
+        try:
+            aktie = yf.Ticker(ticker)
+
+            historik = aktie.history(period="1mo")
+
+            if len(historik) == 0:
+                continue
+
+            aktuel_kurs = float(
+                historik["Close"].iloc[-1]
             )
 
-        elif ændring <= -5:
-            st.warning(
-                f"⚠️ Alarm: {ticker} er faldet mere end 5 %"
+            reference_kurs = float(
+                historik["Close"].iloc[0]
             )
+
+            udvikling = (
+                (aktuel_kurs - reference_kurs)
+                / reference_kurs
+            ) * 100
+
+            status = "✅ OK"
+
+            if udvikling <= -10:
+                status = "🚨 Fald > 10 %"
+
+            elif udvikling <= -5:
+                status = "⚠️ Fald > 5 %"
+
+            rows.append(
+                [
+                    ticker,
+                    round(reference_kurs, 2),
+                    round(aktuel_kurs, 2),
+                    round(udvikling, 2),
+                    status
+                ]
+            )
+
+        except Exception:
+            pass
+
+    if rows:
+
+        df = pd.DataFrame(
+            rows,
+            columns=[
+                "Ticker",
+                "Reference",
+                "Aktuel",
+                "Udvikling %",
+                "Status"
+            ]
+        )
+
+        st.subheader("Watchlist")
+
+        st.dataframe(
+            df,
+            use_container_width=True
+        )
+
+        st.subheader("Alarmer")
+
+        alarmer = df[
+            df["Status"] != "✅ OK"
+        ]
+
+        if len(alarmer) > 0:
+
+            for _, row in alarmer.iterrows():
+
+                if row["Udvikling %"] <= -10:
+
+                    st.error(
+                        f"{row['Ticker']} er faldet "
+                        f"{row['Udvikling %']} %"
+                    )
+
+                else:
+
+                    st.warning(
+                        f"{row['Ticker']} er faldet "
+                        f"{row['Udvikling %']} %"
+                    )
 
         else:
             st.success(
-                "Ingen alarm"
+                "Ingen aktive alarmer"
             )
 
-        historik = aktie.history(period="1y")
+        st.subheader("Kursgraf")
 
-        st.subheader("Kursudvikling")
-        st.line_chart(historik["Close"])
+        valgt = st.selectbox(
+            "Vælg aktie",
+            df["Ticker"]
+        )
 
-    except Exception as e:
-        st.error(f"Fejl: {e}")
+        graf = yf.Ticker(valgt).history(
+            period="1y"
+        )
+
+        st.line_chart(
+            graf["Close"]
+        )
