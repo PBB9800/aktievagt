@@ -132,3 +132,34 @@ if st.button("Analyser valgte aktier"):
             for _, række in alarmer.iterrows():
 
                 if række["Udvikling %"] <= -10:
+            st.error(
+                f"{række['Selskab']} er faldet "
+                f"{række['Udvikling %']} %"
+            )
+
+        else:
+
+            st.warning(
+                f"{række['Selskab']} er faldet "
+                f"{række['Udvikling %']} %"
+            )
+
+    else:
+        st.success(
+            "Ingen aktive alarmer"
+        )
+
+    valgt_ticker = st.selectbox(
+        "Kursgraf",
+        df["Ticker"]
+    )
+
+    graf = yf.Ticker(
+        valgt_ticker
+    ).history(period="1y")
+
+    st.subheader("Kursgraf")
+
+    st.line_chart(
+        graf["Close"]
+    )
