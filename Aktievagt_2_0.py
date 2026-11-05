@@ -6,24 +6,23 @@ from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(
-    page_title="Aktievagt 2.3",
+    page_title="Aktievagt 2.4",
     layout="wide"
 )
 
-# Auto refresh hvert 5. minut
 st_autorefresh(
     interval=300000,
-    key="aktievagt_refresh"
+    key="refresh"
 )
 
-st.title("📈 Aktievagt 2.3")
+st.title("📈 Aktievagt 2.4")
 
 st.caption(
     f"Sidst opdateret: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
 )
 
 st.write(
-    "Scanner C25 og fremhæver dagens største kursfald."
+    "Scanner C25 og vurderer selskabernes kvalitet med en Buffett-inspireret score."
 )
 
 C25 = {
@@ -54,111 +53,132 @@ C25 = {
     "DFDS": "DFDS.CO"
 }
 
-rows = []
+data = []
 
-with st.spinner("Henter kurser..."):
+with st.spinner("Scanner C25..."):
 
     for selskab, ticker in C25.items():
 
         try:
 
-            hist = yf.Ticker(
-                ticker
-            ).history(period="5d")
+            aktie = yf.Ticker(ticker)
+
+            hist = aktie.history(period="5d")
 
             if len(hist) < 2:
                 continue
 
-            gårsdag = float(
-                hist["Close"].iloc[-2]
-            )
-
-            idag = float(
-                hist["Close"].iloc[-1]
-            )
+            gårsdag = float(hist["Close"].iloc[-2])
+            idag = float(hist["Close"].iloc[-1])
 
             ændring = (
                 (idag - gårsdag)
                 / gårsdag
             ) * 100
 
-            rows.append([
+            info = aktie.info
+
+            score = 0
+
+            roe = info.get("returnOnEquity")
+            margin = info.get("profitMargins")
+            pe = info.get("trailingPE")
+            fcf = info.get("freeCashflow")
+            debt = info.get("debtToEquity")
+
+            if roe and roe > 0.15:
+                score += 20
+
+            if margin and margin > 0.15:
+                score += 20
+
+            if fcf and fcf > 0:
+                score += 20
+
+            if debt and debt < 100:
+                score += 20
+
+            if pe and pe < 25:
+                score += 20
+
+            kategori = "Lav"
+
+            if score >= 80:
+                kategori = "⭐⭐⭐ Høj"
+
+            elif score >= 60:
+                kategori = "⭐⭐ God"
+
+            elif score >= 40:
+                kategori = "⭐ Middel"
+
+            status = "✅"
+
+            if ændring <= -10:
+                status = "🚨"
+
+            elif ændring <= -5:
+                status = "⚠️"
+
+            data.append([
                 selskab,
-                ticker,
-                round(gårsdag, 2),
                 round(idag, 2),
-                round(ændring, 2)
+                round(ændring, 2),
+                score,
+                kategori,
+                status
             ])
 
         except Exception:
             pass
 
-if len(rows) > 0:
+if len(data) > 0:
 
     df = pd.DataFrame(
-        rows,
+        data,
         columns=[
             "Selskab",
-            "Ticker",
-            "Gårsdag",
-            "I dag",
-            "Dagsændring %"
+            "Kurs",
+            "Dagsændring %",
+            "Buffett-score",
+            "Kvalitet",
+            "Alarm"
         ]
     )
 
-    df = df.sort_values(
-        by="Dagsændring %",
-        ascending=True
+    st.subheader("🚨 Dagens muligheder")
+
+    muligheder = df[
+        (df["Dagsændring %"] <= -5)
+    ].sort_values(
+        by=["Buffett-score"],
+        ascending=False
     )
 
-    store_fald = df[
-        df["Dagsændring %"] <= -10
-    ]
+    if len(muligheder):
 
-    mellem_fald = df[
-        (df["Dagsændring %"] > -10)
-        & (df["Dagsændring %"] <= -5)
-    ]
-
-    st.subheader("🚨 Fald større end 10 %")
-
-    if len(store_fald) == 0:
-
-        st.success(
-            "Ingen C25-aktier er faldet mere end 10 % i dag."
+        st.dataframe(
+            muligheder,
+            use_container_width=True
         )
 
     else:
 
-        st.dataframe(
-            store_fald,
-            use_container_width=True
-        )
-
-    st.subheader("⚠️ Fald mellem 5 % og 10 %")
-
-    if len(mellem_fald) == 0:
-
         st.success(
-            "Ingen C25-aktier er faldet mellem 5 % og 10 % i dag."
-        )
-
-    else:
-
-        st.dataframe(
-            mellem_fald,
-            use_container_width=True
+            "Ingen C25-aktier er faldet mere end 5 % i dag."
         )
 
     st.subheader("📊 Hele C25")
 
     st.dataframe(
-        df,
+        df.sort_values(
+            by="Dagsændring %"
+        ),
         use_container_width=True
     )
 
     valgt = st.selectbox(
-        "📈 Vis kursgraf",
+        "📈 Vælg aktie",
         df["Selskab"]
     )
 
@@ -176,8 +196,15 @@ if len(rows) > 0:
         graf["Close"]
     )
 
-else:
+    info = yf.Ticker(
+        ticker
+    ).info
 
-    st.error(
-        "Kunne ikke hente kursdata fra Yahoo Finance."
-    )
+    st.subheader("🏦 Buffett-analyse")
+
+    roe = info.get("returnOnEquity")
+    margin = info.get("profitMargins")
+    pe = info.get("trailingPE")
+    debt = info.get("debtToEquity")
+
+    col1, col2, col3, col4
