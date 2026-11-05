@@ -2,9 +2,16 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-st.set_page_config(page_title="Aktievagt 2.2", layout="wide")
+st.set_page_config(
+    page_title="Aktievagt 2.3",
+    layout="wide"
+)
 
-st.title("📈 Aktievagt 2.2")
+st.title("📈 Aktievagt 2.3")
+
+st.write(
+    "Overvåg C25-aktier og få alarm ved store dagsfald."
+)
 
 C25 = {
     "Novo Nordisk": "NOVO-B.CO",
@@ -16,94 +23,137 @@ C25 = {
     "Pandora": "PNDORA.CO",
     "Genmab": "GMAB.CO",
     "Carlsberg": "CARL-B.CO",
-    "Tryg": "TRYG.CO"
+    "Tryg": "TRYG.CO",
+    "Demant": "DEMANT.CO",
+    "GN Store Nord": "GN.CO",
+    "NKT": "NKT.CO",
+    "Sydbank": "SYDB.CO",
+    "Jyske Bank": "JYSK.CO",
+    "Netcompany": "NETC.CO",
+    "ISS": "ISS.CO",
+    "Bavarian Nordic": "BAVA.CO",
+    "Royal Unibrew": "RBREW.CO",
+    "A.P. Møller-Mærsk B": "MAERSK-B.CO",
+    "A.P. Møller-Mærsk A": "MAERSK-A.CO",
+    "Lundbeck": "HLUN-A.CO",
+    "Rockwool B": "ROCK-B.CO",
+    "Rockwool A": "ROCK-A.CO",
+    "DFDS": "DFDS.CO"
 }
 
 valgte = st.multiselect(
     "Vælg aktier",
     list(C25.keys()),
-    default=["Novo Nordisk", "DSV"]
+    default=[
+        "Novo Nordisk",
+        "DSV",
+        "Danske Bank"
+    ]
 )
 
 if st.button("Opdater"):
 
-    data = []
+    resultater = []
 
-    for navn in valgte:
+    for selskab in valgte:
 
-        ticker = C25[navn]
+        ticker = C25[selskab]
 
         try:
+
             aktie = yf.Ticker(ticker)
 
-            hist = aktie.history(period="1mo")
+            hist = aktie.history(period="5d")
 
-            if len(hist) == 0:
+            if len(hist) < 2:
                 continue
 
-            reference = float(hist["Close"].iloc[0])
-            aktuel = float(hist["Close"].iloc[-1])
+            gårsdag = float(hist["Close"].iloc[-2])
+            idag = float(hist["Close"].iloc[-1])
 
-            udvikling = (
-                (aktuel - reference)
-                / reference
+            ændring = (
+                (idag - gårsdag)
+                / gårsdag
             ) * 100
 
             status = "✅ OK"
 
-            if udvikling <= -10:
-                status = "🚨 -10%"
+            if ændring <= -10:
+                status = "🚨 Fald > 10 %"
 
-            elif udvikling <= -5:
-                status = "⚠️ -5%"
+            elif ændring <= -5:
+                status = "⚠️ Fald > 5 %"
 
-            data.append([
-                navn,
-                round(reference, 2),
-                round(aktuel, 2),
-                round(udvikling, 2),
-                status
-            ])
+            resultater.append(
+                [
+                    selskab,
+                    ticker,
+                    round(gårsdag, 2),
+                    round(idag, 2),
+                    round(ændring, 2),
+                    status
+                ]
+            )
 
         except Exception:
             pass
 
-    if len(data) > 0:
+    if len(resultater) > 0:
 
         df = pd.DataFrame(
-            data,
+            resultater,
             columns=[
                 "Selskab",
-                "Reference",
-                "Aktuel",
-                "Udvikling %",
+                "Ticker",
+                "Gårsdag",
+                "I dag",
+                "Dagsændring %",
                 "Status"
             ]
         )
 
-        st.dataframe(df, use_container_width=True)
+        df = df.sort_values(
+            by="Dagsændring %"
+        )
+
+        st.subheader("Overvågning")
+
+        st.dataframe(
+            df,
+            use_container_width=True
+        )
 
         st.subheader("Aktive alarmer")
 
-        alarmer = df[df["Status"] != "✅ OK"]
+        alarmer = df[
+            df["Status"] != "✅ OK"
+        ]
 
         if len(alarmer) == 0:
-            st.success("Ingen aktive alarmer")
+
+            st.success(
+                "Ingen aktive alarmer"
+            )
 
         else:
+
             st.dataframe(
                 alarmer,
                 use_container_width=True
             )
 
-        valgt = st.selectbox(
+        valgt_aktie = st.selectbox(
             "Vis kursgraf",
             valgte
         )
 
         graf = yf.Ticker(
-            C25[valgt]
+            C25[valgt_aktie]
         ).history(period="1y")
+
+        st.subheader(
+            f"Kursgraf: {valgt_aktie}"
+        )
 
         st.line_chart(
             graf["Close"]
