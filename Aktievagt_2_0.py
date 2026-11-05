@@ -3,43 +3,55 @@ import yfinance as yf
 import pandas as pd
 
 st.set_page_config(
-    page_title="Aktievagt 2.1",
+    page_title="Aktievagt 2.2",
     layout="wide"
 )
 
-st.title("📈 Aktievagt 2.1")
+st.title("📈 Aktievagt 2.2")
 
 st.write(
-    "Overvåg flere aktier samtidig og få advarsel ved fald på 5 % og 10 %."
+    "Vælg de C25-aktier du vil overvåge."
 )
 
-watchlist = st.text_area(
-    "Aktier (én ticker pr. linje)",
-    value="""NOVO-B.CO
-DSV.CO
-ORSTED.CO
-DANSKE.CO
-VWS.CO"""
-)
+C25 = {
+    "Novo Nordisk": "NOVO-B.CO",
+    "DSV": "DSV.CO",
+    "Vestas": "VWS.CO",
+    "Danske Bank": "DANSKE.CO",
+    "Ørsted": "ORSTED.CO",
+    "Coloplast": "COLO-B.CO",
+    "Pandora": "PNDORA.CO",
+    "Genmab": "GMAB.CO",
+    "Carlsberg": "CARL-B.CO",
+    "Tryg": "TRYG.CO",
+    "Demant": "DEMANT.CO",
+    "GN Store Nord": "GN.CO",
+    "NKT": "NKT.CO",
+    "Sydbank": "SYDB.CO",
+    "Jyske Bank": "JYSK.CO",
+    "Netcompany": "NETC.CO",
+    "ISS": "ISS.CO",
+    "Bavarian Nordic": "BAVA.CO",
+    "Royal Unibrew": "RBREW.CO",
+    "DFDS": "DFDS.CO"
+}
 
-reference = st.number_input(
-    "Referencekurs (%)",
-    min_value=0,
-    max_value=100,
-    value=100
-)
+st.subheader("Vælg aktier")
 
-if st.button("Opdater watchlist"):
+valgte_aktier = []
 
-    tickers = [
-        t.strip()
-        for t in watchlist.split("\n")
-        if t.strip()
-    ]
+cols = st.columns(4)
+
+for nr, (navn, ticker) in enumerate(C25.items()):
+    with cols[nr % 4]:
+        if st.checkbox(navn):
+            valgte_aktier.append((navn, ticker))
+
+if st.button("Analyser valgte aktier"):
 
     rows = []
 
-    for ticker in tickers:
+    for navn, ticker in valgte_aktier:
 
         try:
             aktie = yf.Ticker(ticker)
@@ -49,32 +61,33 @@ if st.button("Opdater watchlist"):
             if len(historik) == 0:
                 continue
 
-            aktuel_kurs = float(
-                historik["Close"].iloc[-1]
-            )
-
-            reference_kurs = float(
+            reference = float(
                 historik["Close"].iloc[0]
             )
 
+            aktuel = float(
+                historik["Close"].iloc[-1]
+            )
+
             udvikling = (
-                (aktuel_kurs - reference_kurs)
-                / reference_kurs
+                (aktuel - reference)
+                / reference
             ) * 100
 
             status = "✅ OK"
 
             if udvikling <= -10:
-                status = "🚨 Fald > 10 %"
+                status = "🚨 Fald over 10 %"
 
             elif udvikling <= -5:
-                status = "⚠️ Fald > 5 %"
+                status = "⚠️ Fald over 5 %"
 
             rows.append(
                 [
+                    navn,
                     ticker,
-                    round(reference_kurs, 2),
-                    round(aktuel_kurs, 2),
+                    round(reference, 2),
+                    round(aktuel, 2),
                     round(udvikling, 2),
                     status
                 ]
@@ -88,6 +101,7 @@ if st.button("Opdater watchlist"):
         df = pd.DataFrame(
             rows,
             columns=[
+                "Selskab",
                 "Ticker",
                 "Reference",
                 "Aktuel",
@@ -96,53 +110,25 @@ if st.button("Opdater watchlist"):
             ]
         )
 
-        st.subheader("Watchlist")
+        df = df.sort_values(
+            "Udvikling %"
+        )
+
+        st.subheader("Overvågning")
 
         st.dataframe(
             df,
             use_container_width=True
         )
 
-        st.subheader("Alarmer")
-
         alarmer = df[
             df["Status"] != "✅ OK"
         ]
 
-        if len(alarmer) > 0:
+        st.subheader("Aktive alarmer")
 
-            for _, row in alarmer.iterrows():
+        if len(alarmer):
 
-                if row["Udvikling %"] <= -10:
+            for _, række in alarmer.iterrows():
 
-                    st.error(
-                        f"{row['Ticker']} er faldet "
-                        f"{row['Udvikling %']} %"
-                    )
-
-                else:
-
-                    st.warning(
-                        f"{row['Ticker']} er faldet "
-                        f"{row['Udvikling %']} %"
-                    )
-
-        else:
-            st.success(
-                "Ingen aktive alarmer"
-            )
-
-        st.subheader("Kursgraf")
-
-        valgt = st.selectbox(
-            "Vælg aktie",
-            df["Ticker"]
-        )
-
-        graf = yf.Ticker(valgt).history(
-            period="1y"
-        )
-
-        st.line_chart(
-            graf["Close"]
-        )
+                if række
