@@ -10,7 +10,7 @@ st.set_page_config(
 st.title("📈 Aktievagt 2.3")
 
 st.write(
-    "Overvåg C25-aktier og få alarm ved store dagsfald."
+    "Scanner C25 og fremhæver dagens største kursfald."
 )
 
 C25 = {
@@ -41,120 +41,123 @@ C25 = {
     "DFDS": "DFDS.CO"
 }
 
-valgte = st.multiselect(
-    "Vælg aktier",
-    list(C25.keys()),
-    default=[
-        "Novo Nordisk",
-        "DSV",
-        "Danske Bank"
-    ]
-)
+rows = []
 
-if st.button("Opdater"):
+with st.spinner("Henter kurser..."):
 
-    resultater = []
-
-    for selskab in valgte:
-
-        ticker = C25[selskab]
+    for selskab, ticker in C25.items():
 
         try:
 
-            aktie = yf.Ticker(ticker)
-
-            hist = aktie.history(period="5d")
+            hist = yf.Ticker(
+                ticker
+            ).history(period="5d")
 
             if len(hist) < 2:
                 continue
 
-            gårsdag = float(hist["Close"].iloc[-2])
-            idag = float(hist["Close"].iloc[-1])
+            gårsdag = float(
+                hist["Close"].iloc[-2]
+            )
+
+            idag = float(
+                hist["Close"].iloc[-1]
+            )
 
             ændring = (
                 (idag - gårsdag)
                 / gårsdag
             ) * 100
 
-            status = "✅ OK"
-
-            if ændring <= -10:
-                status = "🚨 Fald > 10 %"
-
-            elif ændring <= -5:
-                status = "⚠️ Fald > 5 %"
-
-            resultater.append(
-                [
-                    selskab,
-                    ticker,
-                    round(gårsdag, 2),
-                    round(idag, 2),
-                    round(ændring, 2),
-                    status
-                ]
-            )
+            rows.append([
+                selskab,
+                ticker,
+                round(gårsdag, 2),
+                round(idag, 2),
+                round(ændring, 2)
+            ])
 
         except Exception:
             pass
 
-    if len(resultater) > 0:
+if len(rows) > 0:
 
-        df = pd.DataFrame(
-            resultater,
-            columns=[
-                "Selskab",
-                "Ticker",
-                "Gårsdag",
-                "I dag",
-                "Dagsændring %",
-                "Status"
-            ]
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            "Selskab",
+            "Ticker",
+            "Gårsdag",
+            "I dag",
+            "Dagsændring %"
+        ]
+    )
+
+    df = df.sort_values(
+        by="Dagsændring %"
+    )
+
+    store_fald = df[
+        df["Dagsændring %"] <= -10
+    ]
+
+    mellem_fald = df[
+        (df["Dagsændring %"] > -10)
+        & (df["Dagsændring %"] <= -5)
+    ]
+
+    st.subheader("🚨 Fald større end 10 %")
+
+    if len(store_fald) == 0:
+
+        st.success(
+            "Ingen C25-aktier er faldet mere end 10 % i dag."
         )
 
-        df = df.sort_values(
-            by="Dagsændring %"
-        )
-
-        st.subheader("Overvågning")
+    else:
 
         st.dataframe(
-            df,
+            store_fald,
             use_container_width=True
         )
 
-        st.subheader("Aktive alarmer")
+    st.subheader("⚠️ Fald mellem 5 % og 10 %")
 
-        alarmer = df[
-            df["Status"] != "✅ OK"
-        ]
+    if len(mellem_fald) == 0:
 
-        if len(alarmer) == 0:
-
-            st.success(
-                "Ingen aktive alarmer"
-            )
-
-        else:
-
-            st.dataframe(
-                alarmer,
-                use_container_width=True
-            )
-
-        valgt_aktie = st.selectbox(
-            "Vis kursgraf",
-            valgte
+        st.success(
+            "Ingen C25-aktier er faldet mellem 5 % og 10 % i dag."
         )
 
-        graf = yf.Ticker(
-            C25[valgt_aktie]
-        ).history(period="1y")
+    else:
 
-        st.subheader(
-            f"Kursgraf: {valgt_aktie}"
+        st.dataframe(
+            mellem_fald,
+            use_container_width=True
         )
 
-        st.line_chart(
-            graf["Close"]
-        )
+    st.subheader("📊 Hele C25")
+
+    st.dataframe(
+        df,
+        use_container_width=True
+    )
+
+    valgt = st.selectbox(
+        "📈 Vis kursgraf",
+        df["Selskab"]
+    )
+
+    ticker = C25[valgt]
+
+    graf = yf.Ticker(
+        ticker
+    ).history(period="1y")
+
+    st.subheader(
+        f"Kursgraf: {valgt}"
+    )
+
+    st.line_chart(
+        graf["Close"]
+    )
