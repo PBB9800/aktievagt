@@ -199,12 +199,105 @@ if len(data) > 0:
     info = yf.Ticker(
         ticker
     ).info
+# -----------------------------
+# Buffett-analyse
+# -----------------------------
 
-    st.subheader("🏦 Buffett-analyse")
+st.subheader("🏦 Buffett-analyse")
 
-    roe = info.get("returnOnEquity")
-    margin = info.get("profitMargins")
-    pe = info.get("trailingPE")
-    debt = info.get("debtToEquity")
+info = yf.Ticker(ticker).info
 
-    col1, col2, col3, col4
+roe = info.get("returnOnEquity", 0)
+margin = info.get("profitMargins", 0)
+pe = info.get("trailingPE", None)
+fcf = info.get("freeCashflow", 0)
+debt = info.get("debtToEquity", None)
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    "P/E",
+    round(pe, 1) if pe else "N/A"
+)
+
+col2.metric(
+    "ROE",
+    f"{round(roe * 100, 1)}%"
+    if roe else "N/A"
+)
+
+col3.metric(
+    "Margin",
+    f"{round(margin * 100, 1)}%"
+    if margin else "N/A"
+)
+
+col4.metric(
+    "Debt/Equity",
+    round(debt, 1)
+    if debt else "N/A"
+)
+
+score = 0
+forklaringer = []
+
+if roe and roe > 0.15:
+    score += 20
+    forklaringer.append("✅ Høj ROE")
+
+if margin and margin > 0.15:
+    score += 20
+    forklaringer.append("✅ Stærk profitmargin")
+
+if fcf and fcf > 0:
+    score += 20
+    forklaringer.append("✅ Positiv Free Cash Flow")
+
+if debt and debt < 100:
+    score += 20
+    forklaringer.append("✅ Lav gæld")
+
+if pe and pe < 25:
+    score += 20
+    forklaringer.append("✅ Fornuftig værdiansættelse")
+
+st.metric(
+    "Samlet Buffett-score",
+    f"{score}/100"
+)
+
+if score >= 80:
+    st.success(
+        "⭐ Høj kvalitet ud fra de anvendte kriterier."
+    )
+
+elif score >= 60:
+    st.info(
+        "⭐⭐ God kvalitet."
+    )
+
+elif score >= 40:
+    st.warning(
+        "⭐ Middel kvalitet."
+    )
+
+else:
+    st.error(
+        "Kræver nærmere analyse."
+    )
+
+if forklaringer:
+
+    st.write("**Taler for:**")
+
+    for punkt in forklaringer:
+        st.write(punkt)
+
+else:
+    st.write(
+        "For få nøgletal til at lave en robust vurdering."
+    )
+
+st.caption(
+    "Buffett-scoren er en forenklet kvalitetsindikator baseret på ROE, profitmargin, gæld, cash flow og værdiansættelse. Den er ikke en investeringsanbefaling."
+)
